@@ -9,7 +9,10 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
 import CodeBlock from "@tiptap/extension-code-block";
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Position, useNodeId } from "@xyflow/react";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import { useNodeStore } from "@/lib/store/store";
 
 const MenuButton: React.FC<{
   onClick: () => void;
@@ -32,24 +35,36 @@ const MenuButton: React.FC<{
 };
 
 export default function TiptapRichEditor({
-  content = "<p>Hello <strong>world</strong>!</p>",
+  content = "Hello World<strong>!</strong>",
   onUpdate,
 }: {
   content?: string;
   onUpdate?: (html: string) => void;
 }) {
+  const nodeId = useNodeId();
+  const { deleteNode, setNodeData, noteData } = useNodeStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Get saved content from store
+  const savedContent = nodeId ? noteData[nodeId] || content : content;
+
+  const handleDeleteNode = () => {
+    if (nodeId) {
+      deleteNode(nodeId);
+    }
+  };
 
   // Base extensions that are safe and shipped with @tiptap/* packages
   const baseExtensions: any[] = [
     StarterKit,
     Underline,
-    Link.configure({ openOnClick: true,
-        HTMLAttributes: {
-            rel: "noopener noreferrer",
-            target: "_blank",
-        }
-     }),
+    Link.configure({
+      openOnClick: true,
+      HTMLAttributes: {
+        rel: "noopener noreferrer",
+        target: "_blank",
+      },
+    }),
     Image,
     Table.configure({ resizable: true }),
     TableRow,
@@ -124,12 +139,13 @@ export default function TiptapRichEditor({
 
   const editor = useEditor({
     extensions,
-    content,
+    content: savedContent,
     immediatelyRender: false,
     autofocus: "end",
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       onUpdate?.(html);
+      setNodeData(nodeId || "", html);
     },
   });
 
@@ -156,7 +172,6 @@ export default function TiptapRichEditor({
       return;
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-    
   };
 
   const insertTable = () => {
@@ -167,16 +182,28 @@ export default function TiptapRichEditor({
       .run();
   };
 
-  
-
   return (
-    <div className="w-full max-w-3xl mx-auto">
+    <div className="w-full max-w-xl mx-auto">
       <div className="bg-white border rounded-md shadow-sm relative">
-        <Handle type="source" position={Position.Top} />
-        <Handle type="target" position={Position.Bottom} />
+        {/* Top handles */}
+        <Handle type="source" position={Position.Top} id="top-source" />
+        {/* <Handle type="target" position={Position.Top} id="top-target" /> */}
+
+        {/* Bottom handles */}
+        <Handle type="target" position={Position.Bottom} id="bottom-source" />
+        {/* <Handle type="target" position={Position.Bottom} id="bottom-target" /> */}
 
         {/* Toolbar */}
-        <div className="flex flex-wrap gap-2 p-2 border-b">
+        <div className="flex flex-wrap gap-2 p-2 border-b relative">
+          {/* Delete button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDeleteNode}
+            className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive z-10"
+          >
+            <X className="h-4 w-4" />
+          </Button>
           <MenuButton
             onClick={() => editor?.chain().focus().toggleBold().run()}
             active={!!editor && editor.isActive("bold")}
@@ -337,7 +364,6 @@ export default function TiptapRichEditor({
         {/* Editor area */}
         <div className="p-4 min-h-[200px] prose prose-sm max-w-none">
           <EditorContent editor={editor} />
-          
         </div>
       </div>
     </div>
