@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useCallback, useEffect } from 'react';
-import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Controls, Background, ConnectionMode, useReactFlow, ReactFlowProvider } from '@xyflow/react';
+import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Controls, Background, ConnectionMode, useReactFlow, ReactFlowProvider, NodeChange, EdgeChange, Connection, NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { FaRegNoteSticky } from "react-icons/fa6";
@@ -20,16 +20,16 @@ function CanvasInner() {
   const { nodes, setNodes , edges, setEdges} = useNodeStore();
  
   const onNodesChange = useCallback(
-    (changes: any) => setNodes((nodesSnapshot: any[]) => applyNodeChanges(changes, nodesSnapshot)),
-    [],
+    (changes: NodeChange[]) => setNodes((nodesSnapshot) => applyNodeChanges(changes, nodesSnapshot)),
+    [setNodes],
   );
   const onEdgesChange = useCallback(
-    (changes: any) => setEdges((edgesSnapshot: any[]) => applyEdgeChanges(changes, edgesSnapshot)),
-    [],
+    (changes: EdgeChange[]) => setEdges((edgesSnapshot) => applyEdgeChanges(changes, edgesSnapshot)),
+    [setEdges],
   );
   const onConnect = useCallback(
-    (params: any) => setEdges((edgesSnapshot: any[]) => addEdge(params, edgesSnapshot)),
-    [],
+    (params: Connection) => setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
+    [setEdges],
   );
 
   useEffect(() => {
@@ -67,7 +67,7 @@ function CanvasInner() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={nodeTypes as any}
+        nodeTypes={nodeTypes as NodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
         const prompt = `
         Answer to users messages based on the context provided. If no context is provided, answer based on the messages.
         Context: ${context}
-        Messages: ${messages.map((message: any) => `${message.role}: ${message.content}`).join("\n")}
+        Messages: ${messages.map((message: { role: string; content: string }) => `${message.role}: ${message.content}`).join("\n")}
         `;
         
         console.log("Prompt sent to AI:", prompt);

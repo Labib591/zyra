@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Send, Bot, User, X } from "lucide-react";
 import { useNodeStore } from "@/lib/store/store";
-import { useNodeId, Handle, Position, useReactFlow } from "@xyflow/react";
+import { useNodeId, Handle, Position } from "@xyflow/react";
 import { useChatStore } from "@/lib/store/chatStore";
 import axios from "axios";
 import parse from "html-react-parser";

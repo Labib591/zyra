@@ -55,7 +55,7 @@ export default function TiptapRichEditor({
   };
 
   // Base extensions that are safe and shipped with @tiptap/* packages
-  const baseExtensions: any[] = [
+  const baseExtensions = [
     StarterKit,
     Underline,
     Link.configure({
@@ -74,7 +74,7 @@ export default function TiptapRichEditor({
   ];
 
   // Keep extensions in state so we can add optional ones dynamically
-  const [extensions, setExtensions] = useState<any[]>(baseExtensions);
+  const [extensions, setExtensions] = useState(baseExtensions);
 
   // Try to dynamically import optional extensions that sometimes cause
   // compatibility issues when bundled with different versions of Tiptap.
@@ -86,24 +86,23 @@ export default function TiptapRichEditor({
         // Dynamically import; handle both ESM default and named exports.
         const textAlignModule = await import(
           "@tiptap/extension-text-align"
-        ).then((m) => (m && (m.default || m)) as any);
+        ).then((m) => (m && (m.default || m)) as unknown);
         const placeholderModule = await import(
           "@tiptap/extension-placeholder"
-        ).then((m) => (m && (m.default || m)) as any);
+        ).then((m) => (m && (m.default || m)) as unknown);
 
         if (cancelled) return;
 
-        const extras: any[] = [];
+        const extras: unknown[] = [];
 
         try {
-          if (textAlignModule)
+          if (textAlignModule && typeof textAlignModule === 'object' && 'configure' in textAlignModule)
             extras.push(
-              textAlignModule.configure({ types: ["heading", "paragraph"] })
+              (textAlignModule as { configure: (config: { types: string[] }) => unknown }).configure({ types: ["heading", "paragraph"] })
             );
         } catch (e) {
           // configure might not exist or the module may be incompatible
           // just skip it.
-          // eslint-disable-next-line no-console
           console.warn(
             "text-align extension incompatible or failed to configure:",
             e
@@ -111,23 +110,21 @@ export default function TiptapRichEditor({
         }
 
         try {
-          if (placeholderModule)
+          if (placeholderModule && typeof placeholderModule === 'object' && 'configure' in placeholderModule)
             extras.push(
-              placeholderModule.configure({ placeholder: "Start typing..." })
+              (placeholderModule as { configure: (config: { placeholder: string }) => unknown }).configure({ placeholder: "Start typing..." })
             );
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.warn(
             "placeholder extension incompatible or failed to configure:",
             e
           );
         }
 
-        if (extras.length) setExtensions((prev) => [...prev, ...extras]);
+        if (extras.length) setExtensions((prev) => [...prev, ...extras] as typeof prev);
       } catch (err) {
         // Optional extensions couldn't be imported (not installed / incompatible)
         // We intentionally swallow errors and keep a working editor.
-        // eslint-disable-next-line no-console
         console.warn("Optional Tiptap extensions not loaded:", err);
       }
     })();
@@ -164,7 +161,7 @@ export default function TiptapRichEditor({
 
   const setLink = () => {
     if (!editor) return;
-    const previousUrl = (editor.getAttributes("link") as any).href || "";
+    const previousUrl = (editor.getAttributes("link") as { href?: string }).href || "";
     const url = window.prompt("Enter URL", previousUrl);
     if (url === null) return; // cancelled
     if (url === "") {

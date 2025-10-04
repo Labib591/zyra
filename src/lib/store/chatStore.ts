@@ -88,7 +88,7 @@ export const useChatStore = create<ChatStore>()(persist(
     if (state?.nodeChats) {
       // Convert timestamp strings back to Date objects
       Object.keys(state.nodeChats).forEach(nodeId => {
-        state.nodeChats[nodeId] = state.nodeChats[nodeId].map((msg: any) => ({
+        state.nodeChats[nodeId] = state.nodeChats[nodeId].map((msg: Message) => ({
           ...msg,
           timestamp: new Date(msg.timestamp)
         }));
