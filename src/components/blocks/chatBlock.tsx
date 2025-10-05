@@ -10,7 +10,7 @@ import { useNodeStore } from "@/lib/store/store";
 import { useNodeId, Handle, Position } from "@xyflow/react";
 import { useChatStore } from "@/lib/store/chatStore";
 import axios from "axios";
-import parse from "html-react-parser";
+// Removed html-react-parser import - using dangerouslySetInnerHTML instead
 
 export default function ChatBlock() {
   const nodeId = useNodeId();
@@ -27,6 +27,16 @@ export default function ChatBlock() {
   
   // Get messages for this specific node
   const messages = nodeId ? getMessages(nodeId) : [];
+  
+  // Calculate data sharing status
+  const connectedEdges = edges.filter(edge => edge.target === nodeId);
+  const sourceNodeIds = connectedEdges.map(edge => edge.source);
+  const hasConnectedData = sourceNodeIds.some(sourceId => noteData[sourceId] && noteData[sourceId].trim() !== "");
+  const dataSharingStatus = {
+    connectedNodes: sourceNodeIds.length,
+    hasData: hasConnectedData,
+    totalEdges: connectedEdges.length
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -50,24 +60,46 @@ export default function ChatBlock() {
 
     setTimeout(async () => {
       // Find connected note blocks
+      console.log("=== DATA SHARING DEBUG ===");
+      console.log("Environment:", process.env.NODE_ENV);
       console.log("All edges:", edges);
       console.log("Current node ID:", nodeId);
+      console.log("Full noteData object:", JSON.stringify(noteData, null, 2));
+      
       const connectedEdges = edges.filter(edge => edge.target === nodeId);
       const sourceNodeIds = connectedEdges.map(edge => edge.source);
       
       // Get context from all connected note blocks
       const contextData = sourceNodeIds
-        .map(sourceId => noteData[sourceId] || "")
+        .map(sourceId => {
+          const data = noteData[sourceId] || "";
+          console.log(`Data for source node ${sourceId}:`, data ? `${data.substring(0, 100)}...` : "NO DATA");
+          return data;
+        })
         .filter(data => data.trim() !== "")
         .join("\n\n");
       
-      console.log("Node ID:", nodeId);
       console.log("Connected edges:", connectedEdges);
       console.log("Source node IDs:", sourceNodeIds);
-      console.log("Note Data:", noteData);
-      console.log("Context for this node:", contextData);
+      console.log("Final context data length:", contextData.length);
+      console.log("Context preview:", contextData.substring(0, 200) + (contextData.length > 200 ? "..." : ""));
+      console.log("=== END DEBUG ===");
       
       const updatedMessages = [...messages, userMessage];
+      
+      // Add debugging information to the user message if no context is found
+      if (contextData.length === 0) {
+        console.warn("No context data found - this might indicate a data sharing issue");
+        addMessage(nodeId, {
+          id: Math.random().toString(36).substring(2, 15),
+          role: "assistant",
+          content: "⚠️ No connected note data found. Make sure you have connected note blocks to this chat block.",
+          timestamp: new Date(),
+        });
+        setIsLoading(nodeId, false);
+        return;
+      }
+      
       try {
         const response = await axios.post("/api/chat", {
           messages: updatedMessages,
@@ -82,10 +114,24 @@ export default function ChatBlock() {
         });
       } catch (error) {
         console.error("API Error:", error);
+        
+        // Enhanced error handling
+        let errorMessage = "Sorry, I encountered an error. Please try again.";
+        if (axios.isAxiosError(error)) {
+          const status = error.response?.status;
+          if (status === 401) {
+            errorMessage = "API authentication failed. Please check your API key configuration.";
+          } else if (status === 429) {
+            errorMessage = "Rate limit exceeded. Please try again later.";
+          } else if (status && status >= 500) {
+            errorMessage = "Server error. Please try again later.";
+          }
+        }
+        
         addMessage(nodeId, {
           id: Math.random().toString(36).substring(2, 15),
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
+          content: errorMessage,
           timestamp: new Date(),
         });
       }
@@ -125,6 +171,34 @@ export default function ChatBlock() {
               <X className="h-4 w-4" />
             </Button>
           </div>
+          {/* Data Sharing Status Indicator */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${dataSharingStatus.hasData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <span>
+                {dataSharingStatus.hasData 
+                  ? `${dataSharingStatus.connectedNodes} connected note(s)` 
+                  : dataSharingStatus.connectedNodes > 0 
+                    ? `${dataSharingStatus.connectedNodes} connected but no data`
+                    : 'No notes connected'}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                console.log("=== MANUAL DEBUG CHECK ===");
+                console.log("Current noteData:", noteData);
+                console.log("Current edges:", edges);
+                console.log("localStorage check:", {
+                  main: localStorage.getItem('zyra-canvas-storage'),
+                  backup: localStorage.getItem('zyra-canvas-storage-backup')
+                });
+                console.log("=== END MANUAL DEBUG ===");
+              }}
+              className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
+            >
+              Debug
+            </button>
+          </div>
         </CardHeader>
 
         <CardContent className="flex-1 flex flex-col p-0">
@@ -150,9 +224,10 @@ export default function ChatBlock() {
                         : "bg-muted"
                     }`}
                   >
-                      <p className="text-sm whitespace-pre-wrap">
-                        {parse(message.content)}
-                      </p>
+                      <div 
+                        className="text-sm whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ __html: message.content }}
+                      />
                     <p className="text-xs opacity-70 mt-1">
                       {message.timestamp.toLocaleTimeString()}
                     </p>

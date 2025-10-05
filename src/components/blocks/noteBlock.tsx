@@ -142,9 +142,28 @@ export default function TiptapRichEditor({
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       onUpdate?.(html);
-      setNodeData(nodeId || "", html);
+      // Only save data if we have a valid nodeId
+      if (nodeId) {
+        console.log(`Saving data for node ${nodeId}:`, html.substring(0, 100) + '...');
+        setNodeData(nodeId, html);
+      } else {
+        console.log("No nodeId available, cannot save data");
+      }
     },
   });
+
+  // Effect to sync editor content with store data when nodeId changes
+  useEffect(() => {
+    if (editor && nodeId && noteData[nodeId]) {
+      const currentContent = editor.getHTML();
+      const storedContent = noteData[nodeId];
+      
+      // Only update if the stored content is different from current content
+      if (currentContent !== storedContent) {
+        editor.commands.setContent(storedContent);
+      }
+    }
+  }, [editor, nodeId, noteData]);
 
   const addImage = (file: File) => {
     const reader = new FileReader();

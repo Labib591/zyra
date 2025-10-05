@@ -36,36 +36,144 @@ export const useNodeStore = create<NodeStore>()(
   edges: [],
   noteData: {},
   setCanvasId: (canvasId: string) => {
+    console.log("Setting canvas ID:", canvasId);
     set({ canvasId });
   },
   setNodes: (newNodes: Node[] | ((prevNodes: Node[]) => Node[])) =>
-    set((state) => ({
-      nodes: typeof newNodes === "function" ? newNodes(state.nodes) : newNodes,
-    })),
+    set((state) => {
+      const updatedNodes = typeof newNodes === "function" ? newNodes(state.nodes) : newNodes;
+      console.log("Setting nodes:", updatedNodes.length, "nodes");
+      return { nodes: updatedNodes };
+    }),
   setEdges: (newEdges: Edge[] | ((prevEdges: Edge[]) => Edge[])) =>
-    set((state) => ({
-      edges: typeof newEdges === "function" ? newEdges(state.edges) : newEdges,
-    })),
+    set((state) => {
+      const updatedEdges = typeof newEdges === "function" ? newEdges(state.edges) : newEdges;
+      console.log("Setting edges:", updatedEdges.length, "edges");
+      return { edges: updatedEdges };
+    }),
   deleteNode: (nodeId: string) =>
-    set((state) => ({
-      nodes: state.nodes.filter((node) => node.id !== nodeId),
-    })),
+    set((state) => {
+      console.log("Deleting node:", nodeId);
+      return {
+        nodes: state.nodes.filter((node) => node.id !== nodeId),
+      };
+    }),
   deleteEdge: (edgeId: string) =>
-    set((state) => ({
-      edges: state.edges.filter((edge) => edge.id !== edgeId),
-    })),
+    set((state) => {
+      console.log("Deleting edge:", edgeId);
+      return {
+        edges: state.edges.filter((edge) => edge.id !== edgeId),
+      };
+    }),
   setNodeData: (nodeId: string, data: string) =>
-    set((state) => ({
-      noteData: { ...state.noteData, [nodeId]: data },
-    })),    
+    set((state) => {
+      console.log(`Setting data for node ${nodeId}:`, data ? `${data.substring(0, 100)}...` : "empty data");
+      const newNoteData = { ...state.noteData, [nodeId]: data };
+      
+      // Try to save to localStorage as backup
+      try {
+        const currentState = {
+          nodes: state.nodes,
+          edges: state.edges,
+          noteData: newNoteData,
+        };
+        localStorage.setItem('zyra-canvas-storage-backup', JSON.stringify(currentState));
+        console.log(`Backup saved for node ${nodeId}`);
+      } catch (error) {
+        console.warn(`Failed to save backup for node ${nodeId}:`, error);
+      }
+      
+      return {
+        noteData: newNoteData,
+      };
+    }),    
     }),
     {
       name: "zyra-canvas-storage",
-      partialize: (state) => ({
-        nodes: state.nodes,
-        edges: state.edges,
-        noteData: state.noteData,
-      }),
+      storage: {
+        getItem: (name: string) => {
+          try {
+            const value = localStorage.getItem(name);
+            console.log(`Loading from localStorage: ${name}`, value ? "found" : "not found");
+            return value;
+          } catch (error) {
+            console.error(`Error loading from localStorage: ${name}`, error);
+            return null;
+          }
+        },
+        setItem: (name: string, value: string) => {
+          try {
+            console.log(`Saving to localStorage: ${name}`, `data size: ${value.length} chars`);
+            localStorage.setItem(name, value);
+          } catch (error) {
+            console.error(`Error saving to localStorage: ${name}`, error);
+          }
+        },
+        removeItem: (name: string) => {
+          try {
+            localStorage.removeItem(name);
+          } catch (error) {
+            console.error(`Error removing from localStorage: ${name}`, error);
+          }
+        },
+      } as any,
+      partialize: (state) => {
+        console.log("Partializing state for persistence:", {
+          nodes: state.nodes.length,
+          edges: state.edges.length,
+          noteDataKeys: Object.keys(state.noteData).length,
+          noteDataPreview: Object.keys(state.noteData).slice(0, 3)
+        });
+        return {
+          nodes: state.nodes,
+          edges: state.edges,
+          noteData: state.noteData,
+        };
+      },
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error("Error rehydrating store:", error);
+          
+          // Try to recover from backup
+          try {
+            const backupData = localStorage.getItem('zyra-canvas-storage-backup');
+            if (backupData) {
+              const parsed = JSON.parse(backupData);
+              console.log("Recovering from backup:", parsed);
+              // Note: We can't directly set state here, but we can log the recovery
+              // The user will need to refresh to see the recovered data
+            }
+          } catch (recoveryError) {
+            console.error("Failed to recover from backup:", recoveryError);
+          }
+        } else {
+          console.log("Store rehydrated successfully:", {
+            nodes: state?.nodes.length || 0,
+            edges: state?.edges.length || 0,
+            noteDataKeys: state?.noteData ? Object.keys(state.noteData).length : 0,
+            noteDataContent: state?.noteData ? Object.keys(state.noteData).map(key => ({
+              key,
+              hasData: !!state.noteData[key],
+              dataLength: state.noteData[key]?.length || 0
+            })) : []
+          });
+          
+          // If store is empty but backup exists, suggest recovery
+          if (state && (!state.noteData || Object.keys(state.noteData).length === 0)) {
+            try {
+              const backupData = localStorage.getItem('zyra-canvas-storage-backup');
+              if (backupData) {
+                const parsed = JSON.parse(backupData);
+                if (parsed.noteData && Object.keys(parsed.noteData).length > 0) {
+                  console.warn("Store is empty but backup data exists. Consider refreshing the page to recover data.");
+                }
+              }
+            } catch (e) {
+              // Ignore backup check errors
+            }
+          }
+        }
+      },
     }
   )
 );
