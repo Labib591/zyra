@@ -148,7 +148,7 @@ export default function ChatBlock() {
 
   return (
     <div className="relative">
-      <Card className="w-full h-full flex flex-col relative">
+      <Card className="max-w-[500px] h-full flex flex-col relative">
         {/* Top handles */}
         <Handle type="source" position={Position.Top} />
         <Handle type="target" position={Position.Bottom} />

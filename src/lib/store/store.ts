@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, type PersistStorage } from "zustand/middleware";
 
 interface Node {
   id: string;
@@ -30,7 +30,7 @@ interface NodeStore {
 
 export const useNodeStore = create<NodeStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
   canvasId: "",
   nodes: [],
   edges: [],
@@ -90,33 +90,6 @@ export const useNodeStore = create<NodeStore>()(
     }),
     {
       name: "zyra-canvas-storage",
-      storage: {
-        getItem: (name: string) => {
-          try {
-            const value = localStorage.getItem(name);
-            console.log(`Loading from localStorage: ${name}`, value ? "found" : "not found");
-            return value;
-          } catch (error) {
-            console.error(`Error loading from localStorage: ${name}`, error);
-            return null;
-          }
-        },
-        setItem: (name: string, value: string) => {
-          try {
-            console.log(`Saving to localStorage: ${name}`, `data size: ${value.length} chars`);
-            localStorage.setItem(name, value);
-          } catch (error) {
-            console.error(`Error saving to localStorage: ${name}`, error);
-          }
-        },
-        removeItem: (name: string) => {
-          try {
-            localStorage.removeItem(name);
-          } catch (error) {
-            console.error(`Error removing from localStorage: ${name}`, error);
-          }
-        },
-      } as any,
       partialize: (state) => {
         console.log("Partializing state for persistence:", {
           nodes: state.nodes.length,
@@ -168,7 +141,7 @@ export const useNodeStore = create<NodeStore>()(
                   console.warn("Store is empty but backup data exists. Consider refreshing the page to recover data.");
                 }
               }
-            } catch (e) {
+            } catch {
               // Ignore backup check errors
             }
           }
@@ -183,7 +156,7 @@ export const createNodeStore = (canvasId: string) => {
   const storeName = `zyra-canvas-storage-${canvasId}`;
   
   return create<NodeStore>()(persist(
-    (set, get) => ({
+    (set) => ({
     canvasId: canvasId,
     nodes: [],
     edges: [],
