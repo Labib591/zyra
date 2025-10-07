@@ -80,6 +80,15 @@ export default function LoginPage() {
               {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <a
+              href="/register"
+              className="text-primary underline hover:text-primary/80"
+            >
+              Register
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>

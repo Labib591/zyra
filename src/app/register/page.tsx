@@ -100,6 +100,15 @@ export default function RegisterPage() {
               {loading ? "Registering..." : "Register"}
             </Button>
           </form>
+        <div className="mt-4 text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <a
+            href="/login"
+            className="text-primary underline hover:text-primary/80"
+          >
+            Login
+          </a>
+        </div>
         </CardContent>
       </Card>
     </div>

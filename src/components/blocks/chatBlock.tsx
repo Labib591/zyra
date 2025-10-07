@@ -89,15 +89,7 @@ export default function ChatBlock() {
       
       // Add debugging information to the user message if no context is found
       if (contextData.length === 0) {
-        console.warn("No context data found - this might indicate a data sharing issue");
-        addMessage(nodeId, {
-          id: Math.random().toString(36).substring(2, 15),
-          role: "assistant",
-          content: "⚠️ No connected note data found. Make sure you have connected note blocks to this chat block.",
-          timestamp: new Date(),
-        });
-        setIsLoading(nodeId, false);
-        return;
+        // No context data found, but allow chatting freely with the model (no early return)
       }
       
       try {

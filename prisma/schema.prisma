@@ -14,6 +14,46 @@ model User{
   email String @unique
   password String
   createdAt DateTime @default(now())
+  canvases Canvas[]
+  @@index([id])
 }
 
+model Canvas{
+  id String @id @default(uuid())
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  title String
+  nodes Json
+  edges Json
+  messages Message[]
+  notes Note[]
+  @@index([userId])
+  @@index([id])
+} 
+
+enum ChatRole{
+  user
+  assistant
+}
+
+model Message{
+  id String @id @default(uuid())
+  canvasId String
+  canvas Canvas @relation(fields: [canvasId], references: [id])
+  role ChatRole
+  content String
+  createdAt DateTime @default(now())
+  @@index([canvasId, createdAt, id])
+}
+
+model Note{
+  id String @id @default(uuid())
+  canvasId String
+  canvas Canvas @relation(fields: [canvasId], references: [id])
+  content String
+  createdAt DateTime @default(now())
+  @@index([canvasId, createdAt, id])
+}
 

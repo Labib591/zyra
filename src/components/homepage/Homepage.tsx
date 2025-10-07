@@ -5,12 +5,20 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, FileText, MessageSquare, Zap, ArrowRight } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 export default function Homepage() {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
 
+  const { data: session } = useSession();
+
   const handleCreateCanvas = async () => {
+    if (!session) {
+      router.push("/login");
+      return;
+    }
+
     setIsCreating(true);
     
     // Generate a unique ID for the new canvas
@@ -43,24 +51,34 @@ export default function Homepage() {
             Connect ideas, collaborate with AI, and bring your thoughts to life.
           </p>
 
-          <Button 
-            onClick={handleCreateCanvas}
-            disabled={isCreating}
-            size="lg"
-            className="text-lg px-8 py-6 h-auto bg-primary hover:bg-primary/90 transition-all duration-200 transform hover:scale-105"
-          >
-            {isCreating ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                Creating Canvas...
-              </>
-            ) : (
-              <>
-                Create New Canvas
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </>
-            )}
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button 
+              onClick={handleCreateCanvas}
+              disabled={isCreating}
+              size="lg"
+              className="text-lg px-8 py-6 h-auto bg-primary hover:bg-primary/90 transition-all duration-200 transform hover:scale-105"
+            >
+              {isCreating ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                  Creating Canvas...
+                </>
+              ) : (
+                <>
+                  Create New Canvas
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="text-lg px-8 py-6 h-auto border-primary text-primary hover:bg-primary/10 transition-all duration-200 transform hover:scale-105"
+              onClick={() => router.push("/register")}
+            >
+              Register
+            </Button>
+          </div>
         </div>
 
         {/* Features Grid */}
