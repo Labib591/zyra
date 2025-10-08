@@ -9,8 +9,8 @@ datasource db {
 }
 
 model User{
-  id Int @id @default(autoincrement())
-  name String
+  id String @id @default(uuid())
+  name String @default("User")
   email String @unique
   password String
   createdAt DateTime @default(now())
@@ -20,7 +20,7 @@ model User{
 
 model Canvas{
   id String @id @default(uuid())
-  userId Int
+  userId String
   user User @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

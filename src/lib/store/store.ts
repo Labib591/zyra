@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist, type PersistStorage } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 
 interface Node {
   id: string;

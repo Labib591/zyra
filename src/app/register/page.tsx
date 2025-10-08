@@ -29,7 +29,7 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
 
-    console.log(form);
+    // console.log(form);
 
     try{
     const response = await axios.post("/api/register", form);
@@ -37,7 +37,7 @@ export default function RegisterPage() {
 
     if(response.status === 200){
         alert("User created successfully");
-        router.push("/");
+        router.push("/login");
       }else{
         alert("User creation failed");
       }

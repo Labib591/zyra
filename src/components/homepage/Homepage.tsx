@@ -3,35 +3,55 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, FileText, MessageSquare, Zap, ArrowRight } from "lucide-react";
 import { useSession } from "next-auth/react";
+import axios from "axios";
+import Navbar from "../Navbar";
 
 export default function Homepage() {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [canvasTitle, setCanvasTitle] = useState("");
 
   const { data: session } = useSession();
 
-  const handleCreateCanvas = async () => {
-    if (!session) {
-      router.push("/login");
-      return;
-    }
-
+  const handleCreateCanvas = async (title: string) => {
+    if (!title?.trim()) return;
     setIsCreating(true);
-    
-    // Generate a unique ID for the new canvas
-    const canvasId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    
-    // Navigate to the new canvas
-    router.push(`/canvases/${canvasId}`);
+    try {
+      // console.log("Session status:", session);
+      const response = await axios.post("/api/canvases", 
+        { title: title.trim() },
+        { withCredentials: true }
+      );
+      const canvasId = response?.data?.id;
+      setIsDialogOpen(false);
+      setCanvasTitle("");
+      if (canvasId !== undefined && canvasId !== null) {
+        router.push(`/canvases/${canvasId}`);
+      }
+      else {
+        alert("Failed to create canvas");
+      }
+    } catch (error) {
+      console.error("Error creating canvas:", error);
+      alert("Failed to create canvas. Please make sure you're logged in.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <Navbar />
       <div className="container mx-auto px-4 py-16">
         {/* Header */}
+        
         <div className="text-center mb-16">
           <div className="flex items-center justify-center mb-6">
             <div className="p-3 bg-primary/10 rounded-2xl">
@@ -53,7 +73,7 @@ export default function Homepage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button 
-              onClick={handleCreateCanvas}
+              onClick={() => setIsDialogOpen(true)}
               disabled={isCreating}
               size="lg"
               className="text-lg px-8 py-6 h-auto bg-primary hover:bg-primary/90 transition-all duration-200 transform hover:scale-105"
@@ -79,6 +99,39 @@ export default function Homepage() {
               Register
             </Button>
           </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open: boolean) => { setIsDialogOpen(open); if (!open) setCanvasTitle(""); }}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>New Canvas</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleCreateCanvas(canvasTitle);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="canvas-title">Title</Label>
+                  <Input
+                    id="canvas-title"
+                    placeholder="e.g. Product Brainstorm"
+                    value={canvasTitle}
+                    onChange={(e) => setCanvasTitle(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreating || !canvasTitle.trim()}>
+                    {isCreating ? "Creating..." : "Create"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Features Grid */}
