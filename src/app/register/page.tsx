@@ -29,24 +29,24 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
 
-    // console.log(form);
-
     try{
-    const response = await axios.post("/api/register", form);
-    console.log(response);
+      const response = await axios.post("/api/register", form);
+      console.log(response);
 
-    if(response.status === 200){
+      if(response.status === 200){
         alert("User created successfully");
         router.push("/login");
-      }else{
-        alert("User creation failed");
       }
     }catch(error){
-      console.log(error);
-      alert("User creation failed");
+      console.error(error);
+      if (axios.isAxiosError(error) && error.response?.data?.error) {
+        setError(error.response.data.error);
+      } else {
+        setError("User creation failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    setForm({ name: "", email: "", password: "" });
   };
 
   return (
