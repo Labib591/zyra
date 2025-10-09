@@ -16,6 +16,7 @@ model User{
   password String
   createdAt DateTime @default(now())
   canvases Canvas[]
+  notes Note[]
   @@index([id])
 }
 
@@ -43,18 +44,22 @@ model Message{
   id String @id @default(uuid())
   canvasId String
   canvas Canvas @relation(fields: [canvasId], references: [id])
+  blockId String
   role ChatRole
   content String
   createdAt DateTime @default(now())
-  @@index([canvasId, createdAt, id])
+  @@index([canvasId, blockId, createdAt])
 }
 
 model Note{
   id String @id @default(uuid())
-  canvasId String
+  canvasId String 
+  user User @relation(fields: [userId], references: [id])
+  userId String
   canvas Canvas @relation(fields: [canvasId], references: [id])
   content String
   createdAt DateTime @default(now())
   @@index([canvasId, createdAt, id])
+  // blockId String? @default(uuid())
 }
 

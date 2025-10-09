@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,29 +9,37 @@ import { Send, Bot, User, X } from "lucide-react";
 import { useNodeStore } from "@/lib/store/store";
 import { useNodeId, Handle, Position } from "@xyflow/react";
 import { useChatStore } from "@/lib/store/chatStore";
+import { useCreateMessage, useDeleteMessages, useMessagesFromCache, useNotesFromCache } from "@/hooks/useCanvasQueries";
 import axios from "axios";
 // Removed html-react-parser import - using dangerouslySetInnerHTML instead
 
 export default function ChatBlock() {
   const nodeId = useNodeId();
-  const { deleteNode, noteData, edges } = useNodeStore();
-  const { getMessages, initializeNodeChat, addMessage, isLoading, setIsLoading, clearNodeChat } = useChatStore();
+  const { deleteNode, edges, canvasId } = useNodeStore();
+  const { isLoading, setIsLoading, clearNodeLoading } = useChatStore();
   const [inputValue, setInputValue] = useState("");
   
-  // Initialize chat for this node if it doesn't exist
-  useEffect(() => {
-    if (nodeId) {
-      initializeNodeChat(nodeId);
-    }
-  }, [nodeId, initializeNodeChat]);
+  // Get messages from TanStack Query cache
+  const allMessages = useMessagesFromCache(canvasId);
+  // Filter messages for this specific chat block
+  const messages = allMessages.filter(msg => msg.blockId === nodeId);
+  const createMessageMutation = useCreateMessage();
+  const deleteMessagesMutation = useDeleteMessages();
   
-  // Get messages for this specific node
-  const messages = nodeId ? getMessages(nodeId) : [];
+  // Get all notes from cache
+  const allNotes = useNotesFromCache(canvasId);
   
-  // Calculate data sharing status
+  // Calculate data sharing status - get note content from DB
   const connectedEdges = edges.filter(edge => edge.target === nodeId);
   const sourceNodeIds = connectedEdges.map(edge => edge.source);
-  const hasConnectedData = sourceNodeIds.some(sourceId => noteData[sourceId] && noteData[sourceId].trim() !== "");
+  
+  // Get note data for connected nodes from cache
+  const connectedNotesData = sourceNodeIds.map(sourceId => {
+    const note = allNotes.find(n => n.id === sourceId);
+    return note?.content || '';
+  });
+  const hasConnectedData = connectedNotesData.some(data => data && data.trim() !== "");
+  
   const dataSharingStatus = {
     connectedNodes: sourceNodeIds.length,
     hasData: hasConnectedData,
@@ -45,64 +53,59 @@ export default function ChatBlock() {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !nodeId || isLoading(nodeId)) return;
+    if (!inputValue.trim() || !nodeId || !canvasId || isLoading(nodeId)) return;
     
-    const userMessage = {
-      id: Math.random().toString(36).substring(2, 15),
-      role: "user" as const,
-      content: inputValue,
-      timestamp: new Date(),
-    };
+    const userMessageContent = inputValue;
     
-    addMessage(nodeId, userMessage);
+    // Save user message to DB
+    createMessageMutation.mutate({
+      canvasId,
+      nodeId,
+      content: userMessageContent,
+      role: 'user',
+    });
+    
     setInputValue("");
     setIsLoading(nodeId, true);
 
     setTimeout(async () => {
-      // Find connected note blocks
-      console.log("=== DATA SHARING DEBUG ===");
-      console.log("Environment:", process.env.NODE_ENV);
-      console.log("All edges:", edges);
-      console.log("Current node ID:", nodeId);
-      console.log("Full noteData object:", JSON.stringify(noteData, null, 2));
-      
-      const connectedEdges = edges.filter(edge => edge.target === nodeId);
-      const sourceNodeIds = connectedEdges.map(edge => edge.source);
-      
       // Get context from all connected note blocks
-      const contextData = sourceNodeIds
-        .map(sourceId => {
-          const data = noteData[sourceId] || "";
-          console.log(`Data for source node ${sourceId}:`, data ? `${data.substring(0, 100)}...` : "NO DATA");
-          return data;
-        })
-        .filter(data => data.trim() !== "")
+      const contextData = connectedNotesData
+        .filter(data => data && data.trim() !== "")
         .join("\n\n");
       
+      console.log("=== DATA SHARING DEBUG ===");
       console.log("Connected edges:", connectedEdges);
       console.log("Source node IDs:", sourceNodeIds);
       console.log("Final context data length:", contextData.length);
       console.log("Context preview:", contextData.substring(0, 200) + (contextData.length > 200 ? "..." : ""));
       console.log("=== END DEBUG ===");
       
-      const updatedMessages = [...messages, userMessage];
+      // Prepare messages for AI API (convert to expected format)
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
       
-      // Add debugging information to the user message if no context is found
-      if (contextData.length === 0) {
-        // No context data found, but allow chatting freely with the model (no early return)
-      }
+      // Add the current user message
+      formattedMessages.push({
+        role: 'user',
+        content: userMessageContent,
+      });
       
       try {
         const response = await axios.post("/api/chat", {
-          messages: updatedMessages,
+          messages: formattedMessages,
           context: contextData,
         });
         console.log("API Response:", response.data);
-        addMessage(nodeId, {
-          id: Math.random().toString(36).substring(2, 15),
-          role: "assistant",
+        
+        // Save assistant response to DB
+        createMessageMutation.mutate({
+          canvasId,
+          nodeId,
           content: response.data.response || "No response received",
-          timestamp: new Date(),
+          role: 'assistant',
         });
       } catch (error) {
         console.error("API Error:", error);
@@ -120,11 +123,12 @@ export default function ChatBlock() {
           }
         }
         
-        addMessage(nodeId, {
-          id: Math.random().toString(36).substring(2, 15),
-          role: "assistant",
+        // Save error message to DB
+        createMessageMutation.mutate({
+          canvasId,
+          nodeId,
           content: errorMessage,
-          timestamp: new Date(),
+          role: 'assistant',
         });
       }
       setIsLoading(nodeId, false);
@@ -132,8 +136,13 @@ export default function ChatBlock() {
   };
 
   const handleDeleteNode = () => {
-    if (nodeId) {
-      clearNodeChat(nodeId);
+    if (nodeId && canvasId) {
+      // Delete all messages for this chat block from DB
+      deleteMessagesMutation.mutate({
+        canvasId,
+        nodeId,
+      });
+      clearNodeLoading(nodeId);
       deleteNode(nodeId);
     }
   };
@@ -164,32 +173,15 @@ export default function ChatBlock() {
             </Button>
           </div>
           {/* Data Sharing Status Indicator */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${dataSharingStatus.hasData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-              <span>
-                {dataSharingStatus.hasData 
-                  ? `${dataSharingStatus.connectedNodes} connected note(s)` 
-                  : dataSharingStatus.connectedNodes > 0 
-                    ? `${dataSharingStatus.connectedNodes} connected but no data`
-                    : 'No notes connected'}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                console.log("=== MANUAL DEBUG CHECK ===");
-                console.log("Current noteData:", noteData);
-                console.log("Current edges:", edges);
-                console.log("localStorage check:", {
-                  main: localStorage.getItem('zyra-canvas-storage'),
-                  backup: localStorage.getItem('zyra-canvas-storage-backup')
-                });
-                console.log("=== END MANUAL DEBUG ===");
-              }}
-              className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
-            >
-              Debug
-            </button>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${dataSharingStatus.hasData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span>
+              {dataSharingStatus.hasData 
+                ? `${dataSharingStatus.connectedNodes} connected note(s)` 
+                : dataSharingStatus.connectedNodes > 0 
+                  ? `${dataSharingStatus.connectedNodes} connected but no data`
+                  : 'No notes connected'}
+            </span>
           </div>
         </CardHeader>
 
@@ -221,7 +213,7 @@ export default function ChatBlock() {
                         dangerouslySetInnerHTML={{ __html: message.content }}
                       />
                     <p className="text-xs opacity-70 mt-1">
-                      {message.timestamp.toLocaleTimeString()}
+                      {new Date(message.createdAt).toLocaleTimeString()}
                     </p>
                   </div>
 

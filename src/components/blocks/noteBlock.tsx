@@ -13,6 +13,8 @@ import { Handle, Position, useNodeId } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { useNodeStore } from "@/lib/store/store";
+import { useNoteContent, useCreateNote, useUpdateNote, useDeleteNote } from "@/hooks/useCanvasQueries";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const MenuButton: React.FC<{
   onClick: () => void;
@@ -42,14 +44,70 @@ export default function TiptapRichEditor({
   onUpdate?: (html: string) => void;
 }) {
   const nodeId = useNodeId();
-  const { deleteNode, setNodeData, noteData } = useNodeStore();
+  const { deleteNode, canvasId } = useNodeStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  // Get saved content from store
-  const savedContent = nodeId ? noteData[nodeId] || content : content;
+  // Get note content from TanStack Query cache
+  const savedContent = useNoteContent(canvasId, nodeId || '');
+  
+  // Mutations
+  const createNoteMutation = useCreateNote();
+  const updateNoteMutation = useUpdateNote();
+  const deleteNoteMutation = useDeleteNote();
+
+  // Track if note exists in DB
+  const [noteExists, setNoteExists] = useState(!!savedContent);
+  const [editorContent, setEditorContent] = useState(savedContent || content);
+  
+  // Debounce the editor content for auto-save
+  const debouncedContent = useDebounce(editorContent, 500);
+
+  // Create or update note when debounced content changes
+  useEffect(() => {
+    if (!nodeId || !canvasId || !debouncedContent) return;
+    
+    if (!noteExists) {
+      // Create new note
+      createNoteMutation.mutate(
+        {
+          canvasId,
+          nodeId,
+          content: debouncedContent,
+        },
+        {
+          onSuccess: () => {
+            setNoteExists(true);
+          },
+        }
+      );
+    } else {
+      // Update existing note
+      updateNoteMutation.mutate({
+        canvasId,
+        nodeId,
+        content: debouncedContent,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedContent]);
+
+  // Update noteExists when savedContent changes
+  useEffect(() => {
+    if (savedContent) {
+      setNoteExists(true);
+    }
+  }, [savedContent]);
 
   const handleDeleteNode = () => {
-    if (nodeId) {
+    if (nodeId && canvasId) {
+      // Delete note from DB if it exists
+      if (noteExists) {
+        deleteNoteMutation.mutate({
+          canvasId,
+          nodeId,
+        });
+      }
+      // Delete node from UI
       deleteNode(nodeId);
     }
   };
@@ -136,34 +194,22 @@ export default function TiptapRichEditor({
 
   const editor = useEditor({
     extensions,
-    content: savedContent,
+    content: savedContent || content,
     immediatelyRender: false,
     autofocus: "end",
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      setEditorContent(html);
       onUpdate?.(html);
-      // Only save data if we have a valid nodeId
-      if (nodeId) {
-        console.log(`Saving data for node ${nodeId}:`, html.substring(0, 100) + '...');
-        setNodeData(nodeId, html);
-      } else {
-        console.log("No nodeId available, cannot save data");
-      }
     },
   });
 
-  // Effect to sync editor content with store data when nodeId changes
+  // Update editor content when saved content from DB changes
   useEffect(() => {
-    if (editor && nodeId && noteData[nodeId]) {
-      const currentContent = editor.getHTML();
-      const storedContent = noteData[nodeId];
-      
-      // Only update if the stored content is different from current content
-      if (currentContent !== storedContent) {
-        editor.commands.setContent(storedContent);
-      }
+    if (editor && savedContent && savedContent !== editor.getHTML()) {
+      editor.commands.setContent(savedContent);
     }
-  }, [editor, nodeId, noteData]);
+  }, [editor, savedContent]);
 
   const addImage = (file: File) => {
     const reader = new FileReader();
