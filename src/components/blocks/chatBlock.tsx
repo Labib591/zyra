@@ -9,15 +9,25 @@ import { Send, Bot, User, X } from "lucide-react";
 import { useNodeStore } from "@/lib/store/store";
 import { useNodeId, Handle, Position } from "@xyflow/react";
 import { useChatStore } from "@/lib/store/chatStore";
-import { useCreateMessage, useDeleteMessages, useMessagesFromCache, useNotesFromCache } from "@/hooks/useCanvasQueries";
+import { useCreateMessage, useDeleteMessages, useMessagesFromCache, useNotesFromCache, usePDFsFromCache } from "@/hooks/useCanvasQueries";
 import axios from "axios";
-// Removed html-react-parser import - using dangerouslySetInnerHTML instead
+import { marked } from "marked";
 
 export default function ChatBlock() {
   const nodeId = useNodeId();
   const { deleteNode, edges, canvasId } = useNodeStore();
   const { isLoading, setIsLoading, clearNodeLoading } = useChatStore();
   const [inputValue, setInputValue] = useState("");
+  
+  // Parse markdown to HTML
+  const parseMarkdown = (content: string) => {
+    try {
+      return marked.parse(content, { async: false }) as string;
+    } catch (error) {
+      console.error("Error parsing markdown:", error);
+      return content;
+    }
+  };
   
   // Get messages from TanStack Query cache
   const allMessages = useMessagesFromCache(canvasId);
@@ -26,10 +36,11 @@ export default function ChatBlock() {
   const createMessageMutation = useCreateMessage();
   const deleteMessagesMutation = useDeleteMessages();
   
-  // Get all notes from cache
+  // Get all notes and PDFs from cache
   const allNotes = useNotesFromCache(canvasId);
+  const allPDFs = usePDFsFromCache(canvasId);
   
-  // Calculate data sharing status - get note content from DB
+  // Calculate data sharing status - get note and PDF content from DB
   const connectedEdges = edges.filter(edge => edge.target === nodeId);
   const sourceNodeIds = connectedEdges.map(edge => edge.source);
   
@@ -38,7 +49,16 @@ export default function ChatBlock() {
     const note = allNotes.find(n => n.id === sourceId);
     return note?.content || '';
   });
-  const hasConnectedData = connectedNotesData.some(data => data && data.trim() !== "");
+  
+  // Get PDF data for connected nodes from cache
+  const connectedPDFsData = sourceNodeIds.map(sourceId => {
+    const pdf = allPDFs.find(p => p.blockId === sourceId);
+    return pdf?.extractedText || '';
+  });
+  
+  const hasConnectedData = 
+    connectedNotesData.some(data => data && data.trim() !== "") ||
+    connectedPDFsData.some(data => data && data.trim() !== "");
   
   const dataSharingStatus = {
     connectedNodes: sourceNodeIds.length,
@@ -70,13 +90,27 @@ export default function ChatBlock() {
 
     setTimeout(async () => {
       // Get context from all connected note blocks
-      const contextData = connectedNotesData
+      const notesContext = connectedNotesData
         .filter(data => data && data.trim() !== "")
         .join("\n\n");
+      
+      // Get context from all connected PDF blocks
+      const pdfsContext = connectedPDFsData
+        .filter(data => data && data.trim() !== "")
+        .map((text, idx) => `=== PDF Document ${idx + 1} ===\n${text}`)
+        .join("\n\n");
+      
+      // Combine all context
+      const contextParts = [];
+      if (notesContext) contextParts.push(notesContext);
+      if (pdfsContext) contextParts.push(pdfsContext);
+      const contextData = contextParts.join("\n\n");
       
       console.log("=== DATA SHARING DEBUG ===");
       console.log("Connected edges:", connectedEdges);
       console.log("Source node IDs:", sourceNodeIds);
+      console.log("Notes context length:", notesContext.length);
+      console.log("PDFs context length:", pdfsContext.length);
       console.log("Final context data length:", contextData.length);
       console.log("Context preview:", contextData.substring(0, 200) + (contextData.length > 200 ? "..." : ""));
       console.log("=== END DEBUG ===");
@@ -147,9 +181,20 @@ export default function ChatBlock() {
     }
   };
 
+  // Prevent canvas zoom/pan when scrolling inside the chat block
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div className="relative">
-      <Card className="max-w-[500px] h-full flex flex-col relative">
+      <Card 
+        className="max-w-[500px] h-[600px] flex flex-col relative nowheel"
+      >
         {/* Top handles */}
         <Handle type="source" position={Position.Top} />
         <Handle type="target" position={Position.Bottom} />
@@ -177,17 +222,25 @@ export default function ChatBlock() {
             <div className={`w-2 h-2 rounded-full ${dataSharingStatus.hasData ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
             <span>
               {dataSharingStatus.hasData 
-                ? `${dataSharingStatus.connectedNodes} connected note(s)` 
+                ? `${dataSharingStatus.connectedNodes} data source(s) connected` 
                 : dataSharingStatus.connectedNodes > 0 
                   ? `${dataSharingStatus.connectedNodes} connected but no data`
-                  : 'No notes connected'}
+                  : 'No data sources connected'}
             </span>
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 flex flex-col p-0">
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-4 pb-4">
+        <CardContent 
+          className="flex flex-col p-0 overflow-hidden"
+          style={{ height: 'calc(600px - 120px)' }}
+        >
+          <div 
+            className="overflow-auto px-6"
+            style={{ height: 'calc(100% - 80px)' }}
+            onWheel={handleWheel}
+            onTouchMove={handleTouchMove}
+          >
+            <div className="space-y-4 pb-4 pt-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -209,8 +262,12 @@ export default function ChatBlock() {
                     }`}
                   >
                       <div 
-                        className="text-sm whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ __html: message.content }}
+                        className="text-sm chat-markdown"
+                        dangerouslySetInnerHTML={{ 
+                          __html: message.role === "assistant" 
+                            ? parseMarkdown(message.content) 
+                            : message.content 
+                        }}
                       />
                     <p className="text-xs opacity-70 mt-1">
                       {new Date(message.createdAt).toLocaleTimeString()}
@@ -246,7 +303,7 @@ export default function ChatBlock() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="p-6 border-t">
             <div className="flex gap-2">
@@ -272,3 +329,4 @@ export default function ChatBlock() {
     </div>
   );
 }
+

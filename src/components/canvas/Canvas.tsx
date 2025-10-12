@@ -7,11 +7,13 @@ import '@xyflow/react/dist/style.css';
 
 import { FaRegNoteSticky } from "react-icons/fa6";
 import { RiGeminiFill } from "react-icons/ri";
+import { FileText } from "lucide-react";
 
 import NodePalette from './NodePalette';
 import { useNodeStore } from '@/lib/store/store';
 import ChatBlock from '../blocks/chatBlock';
 import NoteBlock from '../blocks/noteBlock';
+import PdfBlock from '../blocks/pdfBlock';
 import { useUpdateCanvas } from '@/hooks/useCanvasQueries';
 import { useDebounce } from '@/hooks/useDebounce';
 
@@ -86,11 +88,18 @@ function CanvasInner() {
         label: 'AI',
         icon: <RiGeminiFill />,
     },
+    {
+        id: 'pdfBlock',
+        type: 'pdfBlock',
+        label: 'PDF',
+        icon: <FileText />,
+    },
   ];
  
   const nodeTypes = {
     noteBlock: NoteBlock,
     chatBlock: ChatBlock,
+    pdfBlock: PdfBlock,
   }
 
   return (

@@ -31,6 +31,11 @@ export async function GET(
                 orderBy: {
                     createdAt: 'asc'
                 }
+            },
+            PDFs: {
+                orderBy: {
+                    createdAt: 'asc'
+                }
             }
         },
     });

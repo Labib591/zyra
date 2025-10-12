@@ -31,6 +31,7 @@ model Canvas{
   edges Json
   messages Message[]
   notes Note[]
+  PDFs PDF[]
   @@index([userId])
   @@index([id])
 } 
@@ -61,5 +62,20 @@ model Note{
   createdAt DateTime @default(now())
   @@index([canvasId, createdAt, id])
   // blockId String? @default(uuid())
+}
+
+model PDF{
+  id String @id @default(uuid())
+  canvasId String
+  canvas Canvas @relation(fields: [canvasId], references: [id])
+  blockId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fileName String
+  fileUrl String
+  fileType String
+  fileSize Int
+  extractedText String @db.Text
+  @@index([canvasId, blockId])
 }
 

@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Note, Message, Canvas } from '@/generated/prisma';
+import { Note, Message, Canvas, PDF } from '@/generated/prisma';
 
 // Type definitions
 interface CanvasData extends Canvas {
   messages: Message[];
   notes: Note[];
+  PDFs: PDF[];
 }
 
 interface UpdateCanvasParams {
@@ -40,6 +41,17 @@ interface CreateMessageParams {
 interface DeleteMessagesParams {
   canvasId: string;
   nodeId: string;
+}
+
+interface CreatePDFParams {
+  canvasId: string;
+  blockId: string;
+  file: File;
+}
+
+interface DeletePDFParams {
+  canvasId: string;
+  blockId: string;
 }
 
 // Query keys
@@ -362,5 +374,81 @@ export function useDeleteMessages() {
       queryClient.invalidateQueries({ queryKey: canvasKeys.detail(canvasId) });
     },
   });
+}
+
+/**
+ * Hook to create/upload a PDF
+ */
+export function useCreatePDF() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ canvasId, blockId, file }: CreatePDFParams) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('canvasId', canvasId);
+      formData.append('blockId', blockId);
+
+      const response = await fetch('/api/pdfs', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to upload PDF');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, { canvasId }) => {
+      // Invalidate canvas query to refetch with new PDF
+      queryClient.invalidateQueries({ queryKey: canvasKeys.detail(canvasId) });
+    },
+  });
+}
+
+/**
+ * Hook to delete a PDF
+ */
+export function useDeletePDF() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ canvasId, blockId }: DeletePDFParams) => {
+      const response = await fetch('/api/pdfs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ canvasId, blockId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete PDF');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_data, { canvasId }) => {
+      queryClient.invalidateQueries({ queryKey: canvasKeys.detail(canvasId) });
+    },
+  });
+}
+
+/**
+ * Helper hook to get PDFs for a specific canvas from cache
+ */
+export function usePDFsFromCache(canvasId: string) {
+  const queryClient = useQueryClient();
+  const canvasData = queryClient.getQueryData<CanvasData>(canvasKeys.detail(canvasId));
+  return canvasData?.PDFs || [];
+}
+
+/**
+ * Helper to get PDF content (extracted text) by blockId
+ */
+export function usePDFContent(canvasId: string, blockId: string) {
+  const pdfs = usePDFsFromCache(canvasId);
+  const pdf = pdfs.find(p => p.blockId === blockId);
+  return pdf?.extractedText || '';
 }
 

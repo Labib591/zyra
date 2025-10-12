@@ -8,6 +8,13 @@ const nextConfig: NextConfig = {
       fs: false,
     };
     
+    // PDF.js configuration - disable canvas and encoding for client-side
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false,
+      encoding: false,
+    };
+    
     return config;
   },
   experimental: {
