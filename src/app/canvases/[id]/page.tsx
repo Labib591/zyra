@@ -3,7 +3,7 @@ import Canvas from '@/components/canvas/Canvas';
 import { useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useNodeStore } from '@/lib/store/store';
-import { useCanvasData } from '@/hooks/useCanvasQueries';
+import { useCanvasData, useUpdateCanvas } from '@/hooks/useCanvasQueries';
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -14,6 +14,17 @@ export default function CanvasPage() {
 
   // Fetch canvas data with TanStack Query
   const { data: canvas, isLoading, error } = useCanvasData(canvasId);
+  const updateCanvasMutation = useUpdateCanvas();
+
+  // Handle title change
+  const handleTitleChange = (newTitle: string) => {
+    if (canvasId && newTitle.trim()) {
+      updateCanvasMutation.mutate({
+        canvasId,
+        title: newTitle.trim(),
+      });
+    }
+  };
 
   // Hydrate Zustand store when canvas data is loaded
   useEffect(() => {
@@ -55,5 +66,5 @@ export default function CanvasPage() {
     );
   }
 
-  return <Canvas />;
+  return <Canvas title={canvas?.title || 'Untitled Canvas'} onTitleChange={handleTitleChange} />;
 }

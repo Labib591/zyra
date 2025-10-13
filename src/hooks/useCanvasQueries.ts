@@ -12,6 +12,7 @@ interface UpdateCanvasParams {
   canvasId: string;
   nodes?: unknown;
   edges?: unknown;
+  title?: string;
 }
 
 interface CreateNoteParams {
@@ -87,11 +88,11 @@ export function useUpdateCanvas() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ canvasId, nodes, edges }: UpdateCanvasParams) => {
+    mutationFn: async ({ canvasId, nodes, edges, title }: UpdateCanvasParams) => {
       const response = await fetch(`/api/canvases/${canvasId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes, edges }),
+        body: JSON.stringify({ nodes, edges, title }),
       });
 
       if (!response.ok) {
@@ -100,7 +101,7 @@ export function useUpdateCanvas() {
 
       return response.json();
     },
-    onMutate: async ({ canvasId, nodes, edges }) => {
+    onMutate: async ({ canvasId, nodes, edges, title }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: canvasKeys.detail(canvasId) });
 
@@ -113,6 +114,7 @@ export function useUpdateCanvas() {
           ...previousCanvas,
           nodes: nodes ?? previousCanvas.nodes,
           edges: edges ?? previousCanvas.edges,
+          title: title ?? previousCanvas.title,
         });
       }
 

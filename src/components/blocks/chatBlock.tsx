@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Send, Bot, User, X } from "lucide-react";
@@ -66,7 +66,7 @@ export default function ChatBlock() {
     totalEdges: connectedEdges.length
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter") {
       handleSendMessage();
     }
@@ -116,7 +116,9 @@ export default function ChatBlock() {
       console.log("=== END DEBUG ===");
       
       // Prepare messages for AI API (convert to expected format)
-      const formattedMessages = messages.map(msg => ({
+      // Only keep the last 10 messages to prevent overloading the model
+      const recentMessages = messages.slice(-10);
+      const formattedMessages = recentMessages.map(msg => ({
         role: msg.role,
         content: msg.content,
       }));
@@ -307,12 +309,12 @@ export default function ChatBlock() {
 
           <div className="p-6 border-t">
             <div className="flex gap-2">
-              <Input
+              <Textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Type your message..."
                 disabled={nodeId ? isLoading(nodeId) : false}
-                className="flex-1"
+                className="flex-grow"
                 onKeyDown={handleKeyDown}
               />
               <Button

@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, FileText, MessageSquare, Zap, ArrowRight } from "lucide-react";
-import { useSession } from "next-auth/react";
 import axios from "axios";
 import Navbar from "../Navbar";
+import { toast } from "sonner";
+// import { getServerSession } from "next-auth";
+// import { authOptions } from "@/lib/auth";
 
 export default function Homepage() {
   const router = useRouter();
@@ -18,7 +20,8 @@ export default function Homepage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [canvasTitle, setCanvasTitle] = useState("");
 
-  const { data: session } = useSession();
+  // const session = getServerSession(authOptions);
+  // console.log("Session status:", session);
 
   const handleCreateCanvas = async (title: string) => {
     if (!title?.trim()) return;
@@ -33,14 +36,15 @@ export default function Homepage() {
       setIsDialogOpen(false);
       setCanvasTitle("");
       if (canvasId !== undefined && canvasId !== null) {
+        toast("Canvas created successfully");
         router.push(`/canvases/${canvasId}`);
       }
       else {
-        alert("Failed to create canvas");
+        toast("Failed to create canvas");
       }
     } catch (error) {
       console.error("Error creating canvas:", error);
-      alert("Failed to create canvas. Please make sure you're logged in.");
+      toast("Failed to create canvas. Please make sure you're logged in.");
     } finally {
       setIsCreating(false);
     }
